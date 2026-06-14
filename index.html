@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chronograph Stopwatch</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Inter:wght@400;500;600&display=swap');
+
+  :root{
+    --bg:#12161B;
+    --surface:#1B2027;
+    --line:#2A313B;
+    --text:#E7EAEE;
+    --muted:#71798A;
+    --accent:#5EEAD4;
+    --lap:#FBBF24;
+    --slow:#F87171;
+  }
+
+  *{ box-sizing:border-box; margin:0; padding:0; }
+
+  body{
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:var(--bg);
+    font-family:'Inter', sans-serif;
+    color:var(--text);
+    padding:24px;
+  }
+
+  .app{
+    width:100%;
+    max-width:380px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:28px;
+  }
+
+  .eyebrow{
+    font-size:12px;
+    letter-spacing:0.3em;
+    color:var(--muted);
+    text-transform:uppercase;
+  }
+
+  .dial-wrap{
+    position:relative;
+    width:280px;
+    height:280px;
+  }
+
+  .dial{ width:100%; height:100%; transform:rotate(-90deg); }
+
+  .track{
+    fill:none;
+    stroke:var(--surface);
+    stroke-width:6;
+  }
+
+  .progress{
+    fill:none;
+    stroke:var(--accent);
+    stroke-width:6;
+    stroke-linecap:round;
+    stroke-dasharray:879.6;
+    stroke-dashoffset:879.6;
+    transition:stroke 0.2s ease;
+  }
+
+  .tick{
+    stroke:var(--line);
+    stroke-width:2;
+  }
+  .tick.major{ stroke:var(--muted); stroke-width:3; }
+
+  .readout{
+    position:absolute;
+    inset:0;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+  }
+
+  #time{
+    font-family:'Space Mono', monospace;
+    font-size:48px;
+    font-weight:700;
+    font-variant-numeric:tabular-nums;
+    letter-spacing:0.02em;
+  }
+
+  #time .cs{
+    font-size:24px;
+    color:var(--muted);
+  }
+
+  .state{
+    font-size:11px;
+    letter-spacing:0.25em;
+    color:var(--muted);
+    text-transform:uppercase;
+    transition:color 0.2s ease;
+  }
+  .state.running{ color:var(--accent); }
+  .state.paused{ color:var(--lap); }
+
+  .controls{
+    display:flex;
+    gap:20px;
+  }
+
+  .btn{
+    width:88px;
+    height:88px;
+    border-radius:50%;
+    border:1px solid var(--line);
+    background:var(--surface);
+    color:var(--text);
+    font-family:'Inter', sans-serif;
+    font-size:14px;
+    font-weight:600;
+    letter-spacing:0.05em;
+    text-transform:uppercase;
+    cursor:pointer;
+    transition:all 0.15s ease;
+  }
+
+  .btn:hover:not(:disabled){ border-color:var(--muted); }
+  .btn:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+
+  .btn:active:not(:disabled){ transform:scale(0.96); }
+
+  .btn:disabled{
+    color:var(--muted);
+    cursor:not-allowed;
+    opacity:0.5;
+  }
+
+  .btn.primary{
+    border-color:var(--accent);
+    color:var(--accent);
+  }
+  .btn.primary.running{
+    background:var(--accent);
+    color:var(--bg);
+  }
+
+  .laps{
+    width:100%;
+    list-style:none;
+    display:flex;
+    flex-direction:column;
+    gap:1px;
+    max-height:200px;
+    overflow-y:auto;
+  }
+
+  .laps:empty{ display:none; }
+
+  .laps li{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:12px 4px;
+    border-bottom:1px solid var(--line);
+    font-size:14px;
+  }
+
+  .laps li:last-child{ border-bottom:none; }
+
+  .lap-num{
+    color:var(--muted);
+    font-variant-numeric:tabular-nums;
+    width:60px;
+  }
+
+  .lap-split{
+    font-family:'Space Mono', monospace;
+    font-variant-numeric:tabular-nums;
+  }
+
+  .lap-total{
+    font-family:'Space Mono', monospace;
+    font-variant-numeric:tabular-nums;
+    color:var(--muted);
+    font-size:13px;
+  }
+
+  .lap-split.fastest{ color:var(--accent); }
+  .lap-split.slowest{ color:var(--slow); }
+
+  @media (prefers-reduced-motion: reduce){
+    .progress, .btn, .state{ transition:none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <p class="eyebrow">Chronograph</p>
+
+  <div class="dial-wrap">
+    <svg class="dial" viewBox="0 0 320 320">
+      <circle class="track" cx="160" cy="160" r="140" />
+      <circle class="progress" cx="160" cy="160" r="140" />
+      <g id="ticks"></g>
+    </svg>
+    <div class="readout">
+      <div id="time">00:00<span class="cs">.00</span></div>
+      <div class="state" id="state">Ready</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn ghost" id="lapResetBtn" disabled>Lap</button>
+    <button class="btn primary" id="startPauseBtn">Start</button>
+  </div>
+
+  <ol class="laps" id="laps"></ol>
+</div>
+
+<script>
+  // --- Build the tick marks around the dial ---
+  const ticksGroup = document.getElementById('ticks');
+  const CENTER = 160;
+  for (let i = 0; i < 60; i++) {
+    const angle = i * 6; // 60 ticks around the circle
+    const isMajor = i % 5 === 0;
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', CENTER);
+    line.setAttribute('x2', CENTER);
+    line.setAttribute('y1', 16);
+    line.setAttribute('y2', isMajor ? 32 : 26);
+    line.setAttribute('class', 'tick' + (isMajor ? ' major' : ''));
+    line.setAttribute('transform', `rotate(${angle} ${CENTER} ${CENTER})`);
+    ticksGroup.appendChild(line);
+  }
+
+  // --- State ---
+  let running = false;
+  let startTimestamp = 0;   // performance.now() when current run started
+  let elapsed = 0;          // accumulated ms before the current run
+  let rafId = null;
+  let laps = [];             // total elapsed ms at each lap
+
+  // --- Elements ---
+  const timeEl = document.getElementById('time');
+  const stateEl = document.getElementById('state');
+  const startPauseBtn = document.getElementById('startPauseBtn');
+  const lapResetBtn = document.getElementById('lapResetBtn');
+  const lapsEl = document.getElementById('laps');
+  const progressEl = document.querySelector('.progress');
+
+  const CIRCUMFERENCE = 2 * Math.PI * 140; // ~879.6
+
+  function format(ms) {
+    const totalCs = Math.floor(ms / 10);
+    const cs = totalCs % 100;
+    const totalSec = Math.floor(totalCs / 100);
+    const sec = totalSec % 60;
+    const min = Math.floor(totalSec / 60);
+    const pad = (n, len = 2) => String(n).padStart(len, '0');
+    return { main: `${pad(min)}:${pad(sec)}`, cs: pad(cs) };
+  }
+
+  function render(ms) {
+    const { main, cs } = format(ms);
+    timeEl.innerHTML = `${main}<span class="cs">.${cs}</span>`;
+
+    const fraction = (ms % 60000) / 60000;
+    progressEl.style.strokeDashoffset = CIRCUMFERENCE * (1 - fraction);
+  }
+
+  function tick() {
+    const now = performance.now();
+    const currentElapsed = elapsed + (now - startTimestamp);
+    render(currentElapsed);
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function getElapsed() {
+    return running ? elapsed + (performance.now() - startTimestamp) : elapsed;
+  }
+
+  function start() {
+    running = true;
+    startTimestamp = performance.now();
+    rafId = requestAnimationFrame(tick);
+
+    startPauseBtn.textContent = 'Pause';
+    startPauseBtn.classList.add('running');
+    stateEl.textContent = 'Running';
+    stateEl.className = 'state running';
+
+    lapResetBtn.disabled = false;
+    lapResetBtn.textContent = 'Lap';
+  }
+
+  function pause() {
+    running = false;
+    elapsed = getElapsed();
+    cancelAnimationFrame(rafId);
+    render(elapsed);
+
+    startPauseBtn.textContent = 'Resume';
+    startPauseBtn.classList.remove('running');
+    stateEl.textContent = 'Paused';
+    stateEl.className = 'state paused';
+
+    lapResetBtn.textContent = 'Reset';
+  }
+
+  function reset() {
+    running = false;
+    elapsed = 0;
+    laps = [];
+    cancelAnimationFrame(rafId);
+    render(0);
+
+    startPauseBtn.textContent = 'Start';
+    startPauseBtn.classList.remove('running');
+    stateEl.textContent = 'Ready';
+    stateEl.className = 'state';
+
+    lapResetBtn.disabled = true;
+    lapResetBtn.textContent = 'Lap';
+    lapsEl.innerHTML = '';
+  }
+
+  function recordLap() {
+    const total = getElapsed();
+    const previousTotal = laps.length ? laps[laps.length - 1] : 0;
+    const split = total - previousTotal;
+    laps.push(total);
+    renderLaps();
+  }
+
+  function renderLaps() {
+    // Find fastest / slowest splits (only meaningful with 2+ laps)
+    const splits = laps.map((t, i) => (i === 0 ? t : t - laps[i - 1]));
+    let fastestIdx = -1, slowestIdx = -1;
+    if (splits.length > 1) {
+      fastestIdx = splits.indexOf(Math.min(...splits));
+      slowestIdx = splits.indexOf(Math.max(...splits));
+    }
+
+    lapsEl.innerHTML = '';
+    for (let i = laps.length - 1; i >= 0; i--) {
+      const split = format(splits[i]);
+      const total = format(laps[i]);
+      const li = document.createElement('li');
+
+      let splitClass = 'lap-split';
+      if (fastestIdx !== -1 && i === fastestIdx) splitClass += ' fastest';
+      else if (slowestIdx !== -1 && i === slowestIdx) splitClass += ' slowest';
+
+      li.innerHTML = `
+        <span class="lap-num">Lap ${i + 1}</span>
+        <span class="${splitClass}">${split.main}.${split.cs}</span>
+        <span class="lap-total">${total.main}.${total.cs}</span>
+      `;
+      lapsEl.appendChild(li);
+    }
+  }
+
+  // --- Controls ---
+  startPauseBtn.addEventListener('click', () => {
+    if (running) pause();
+    else start();
+  });
+
+  lapResetBtn.addEventListener('click', () => {
+    if (running) recordLap();
+    else reset();
+  });
+
+  render(0);
+</script>
+
+</body>
+</html>
